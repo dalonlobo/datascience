@@ -1,0 +1,204 @@
+---
+title: "Analysis of Onion prices"
+author: "Dalon Lobo"
+date: "April 26, 2017"
+output:
+  html_document: default
+  pdf_document: default
+always_allow_html: yes
+---
+
+# Question
+
+Analyse the Onion Price on State and Day Level. Solve the following 2 parts:
+
+    1. Find the State with the highest quantity sales.
+    2. Predict the daily price for the next 30 days for that state.
+    
+# Analysis
+
+## Steps involved
+
+The following general steps are involved in a typical analysis.
+
+    1. Frame
+    2. Acquire
+    3. Refine
+    4. Transform
+    5. Explore
+    6. Model
+    7. Communicate
+    
+We will carry out the above steps and find the result.
+
+# Acquire
+
+Lets scrape the data from [NHRD site](http://nhrdf.org/en-us/DailyWiseMarketArrivals)
+
+* I will use 'rvest' package to scrape the data
+* I've chosen year 2017, Jan, Feb data for analysis
+* After applying the filters in site, I've saved the html locally by name "DailyWiseMarketArrivals.html"
+
+```{r Aquire}
+library(rvest)
+setwd("D:/GreatLakes/Res2")
+pgOut <- read_html("DailyWiseMarketArrivals.html")
+pgTable <- pgOut %>%
+            html_node("#dnn_ctr966_DailyWiseMarketArrivals_GridView1") %>%
+            html_table()
+
+df <- pgTable
+str(df)
+```
+
+# Refine
+
+* Removing the last row, as it contains total, which we are not interested in.
+
+```{r}
+library(dplyr)
+# using dplyr filter function to remove the row
+colnames(df)
+df <- df %>%
+    filter(Market != "Total")
+tail(df)
+
+```
+
+* Renaming the column names
+
+```{r}
+names <- c('date', 'state', 'quantity', 'minPrice', 'maxPrice', 'modPrice')
+colnames(df) <- names
+str(df)
+```
+
+* Changing the date to r date datatype
+
+```{r}
+df$date <- as.Date(df$date, "%d/%b/%Y")
+df$minPrice <- as.numeric(df$minPrice)
+df$maxPrice <- as.numeric(df$maxPrice)
+df$modPrice <- as.numeric(df$modPrice)
+str(df)
+```
+
+* Seperate out city and state
+
+```{r}
+
+library(stringr)
+library(tidyr)
+df <- df %>%
+    mutate(state1 = state) %>%
+    separate(state1, c("city", "stateAbbr"), sep="\\(")
+head(df)
+df$stateAbbr <- str_replace_all(df$stateAbbr, "\\)", "")
+
+```
+
+* Removing the rows with NA
+```{r}
+sum(is.na(df$stateAbbr))
+df <- df[!(is.na(df$stateAbbr)), ]
+sum(is.na(df$stateAbbr))
+df <- df[, !duplicated(colnames(df))]
+unique(df$stateAbbr)
+```
+
+# Transform
+
+* Now lets group by state and find the state with highest quantity sales
+
+```{r}
+qTable <- df %>% 
+    group_by(stateAbbr) %>% 
+    summarise(quantityByState = sum(quantity)) %>% 
+    arrange(desc(quantityByState)) %>%
+    filter(quantityByState > 75000)
+qTable[which.max(qTable$quantityByState),]
+
+```
+
+We can conclude that **MS - Maharastra** has the highest quantity sales i.e. **10915963(q)**
+
+# Explore
+
+```{r}
+library(ggplot2)
+statePlot <- ggplot(qTable) +
+    aes(reorder(stateAbbr, quantityByState),
+        weight = quantityByState,
+        fill = quantityByState) +
+    geom_bar() +
+    coord_flip() +
+    labs(y = "Quanity (q)",
+        x = "State", title = "State Vs Quantity")
+
+library(plotly)
+ggplotly(statePlot)
+```
+
+
+
+You can clearly conclude from the graph that Maharastra is leading consumer of onions.
+
+# Model 
+
+Lets predict for next 30 days for state Maharastra
+
+```{r}
+dim(df)
+str(df)
+dfMS <- df %>%
+  filter(stateAbbr == "MS") %>%
+  select(date, modPrice) %>%
+  arrange(date)
+dim(dfMS)
+
+ggplot(dfMS) + aes(date, modPrice) + geom_line() +
+    labs(title = "Mod price Vs Date")
+
+
+
+```
+
+Lets use prophet library to predict the future prices
+
+```{r}
+library(prophet)
+colnames(dfMS) <- c('ds', 'y')
+str(dfMS)
+m <- prophet(dfMS)
+
+future <- make_future_dataframe(m, periods = 30, freq = 'd')
+tail(future)
+
+forecast <- predict(m, future)
+tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+
+plot(m, forecast,   xlab = "Date",
+  ylab = "Price")
+
+prophet_plot_components(m, forecast)
+
+```
+
+# Communicate / Conclusion
+
+Using R, we have successfully scraped the data and predicted the prices for next 30 days.
+
+Conclusion is as follows:
+
+    *   Maharastra MS is the highest consumer of onions 10915963(q)
+    *   The prediction is successfully ploted in the above graphs.
+
+
+
+
+
+
+
+
+
+

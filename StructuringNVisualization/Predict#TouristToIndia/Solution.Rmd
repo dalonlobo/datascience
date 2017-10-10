@@ -1,0 +1,127 @@
+---
+title: "R Notebook"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+# Frame
+
+1. Maximum number of tourists travelling to India are from which country?
+2. Predict the number of tourists traveling to India for the year 2011 from 
+   that country.
+   
+   
+# Aquire
+
+The data is in datafile.csv, aquired from https://data.gov.in/catalog/number-foreign-tourists-indi
+
+```{r}
+# Reading the csv to dataframe
+df <- read.csv("datafile.csv")
+
+# view the structure of dataframe
+str(df)
+View(df)
+
+```
+
+# Refine and Transform
+
+- I will remove the rows with Others and Total in Nationality column
+```{r}
+library(dplyr)
+library(tidyr)
+df <- df %>%
+    filter(Nationality != "Others", Nationality != "Total",
+           Nationality != "STATELESS")
+tail(df)
+```
+
+- Remove the Region column as we are only interested in Nationality
+
+```{r}
+df <- subset(df, select = -c(Region))
+tail(df)
+
+length(unique(df$Nationality))
+str(df)
+
+# Add summary column
+df$summary = df$X2001 + df$X2002 + df$X2003 + df$X2004 + df$X2005 + df$X2006 +                      df$X2007 + df$X2008 + df$X2009 + df$X2010
+
+# Arrange in descending order
+df <- df %>% arrange(desc(summary))
+dfTop10 <- df %>% top_n(10)
+dfTop10
+```
+
+# Explore
+
+Display bar chart of maximum number of tourists
+
+```{r}
+library(ggplot2)
+
+countryBarPlot <- ggplot(dfTop10) + 
+    aes(reorder(Nationality, summary), weight = summary, fill = summary) + 
+    xlab("Country") +
+    ylab("Number of Tourists") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    geom_bar()
+    
+
+library(plotly)
+ggplotly(countryBarPlot)
+
+```
+
+Answering the question: 
+
+We can clearly see from the graph that maximum number of tourists are from **U.S.A.** in between the years 2001 to 2010, followed by **U.K.**
+
+# Model
+
+- Plot a scatter plot to view the relation
+
+```{r}
+
+usaData <- data.frame(year=c(2001:2010), tourists=as.numeric(dfTop10[1,2:11]))
+
+p <- ggplot(usaData) +
+    aes(year, tourists)
+p + geom_point() 
+
+
+```
+
+- Try to fit linear regression 
+
+```{r}
+model1 <- lm(tourists~year, data = usaData)
+model1
+summary(model1)
+# Notice that r2 is close to 1, so it looks like good fit
+
+plot(tourists~year, data = usaData)
+abline(model1, col = "red")
+
+plot(model1)
+
+# Predicting the values
+p1 <- predict(model1, data.frame(year=c(2011:2014)))
+predictedDf <- data.frame(year=2011:2014, tourists=p1)
+predictedDf
+```
+
+- From **predictedDf** we can predict that **1016694** tourists are going to come to India from USA in the year 2011.
+
+# Communicate
+
+The following are the answers to the framed question:
+
+1.  The maximum number of tourists are from **U.S.A.** in between the years 2001 to     2010, followed by **U.K.**
+
+2.  **1016694** tourists are going to come to India from USA in the year 2011.
+
+Do check out my github repo git@github.com:dalonlobo/art-of-datascience.git, for my other work in this field.
