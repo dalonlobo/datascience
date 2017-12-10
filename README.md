@@ -5,7 +5,7 @@ Most of the files in here are jupyter notebooks.
 
 ## Instructions to run Jupyter Notebooks:
 
-1. I recommend installation of conda
+1. Install conda
 2. Create an environment using `conda create`
 3. Install all the dependent packages
 4. Run `jupyter notebook`
